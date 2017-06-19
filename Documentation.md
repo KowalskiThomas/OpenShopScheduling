@@ -5,6 +5,7 @@ Pour optimiser des emplois du temps d'oraux de concours, on peut utiliser cette 
 
 ## Fonctionnement
 On souhaite optimiser une solution au problème d'ordonnancement *open-shop* suivant.
+
 * *n* objets (*jobs*) qui représentent les candidats
 * *p* machines qui représentent les jurys
 
@@ -32,6 +33,48 @@ Peut devenir
 123 12*43* 4231 2314
 ```
 (Modification au niveau des étoiles.)
+## Annexe : représentation des objets du problème
+Afin d'éviter d'employer une programmation orientée objet lourde pour les objets simples de notre problème (qui se représenteraient mieux par des structures que par des classes, indisponibles en Python), on utilise des primitives de Python.
+
+Par exemple, on représente un jury par un dictionnaire de ce type :
+
+```python
+jury = {
+    "Numero" : 3,
+    "Oraux"  : {
+        1 : 3,
+        2 : 5,
+        ...
+        n : ...
+    }
+}
+```
+Le numéro permet de désigner la durée de son épreuve à en utilisant `durees[numeroDuJury]` (`durees` est une liste définie en début de script) ainsi que de le placer sur la représentation graphe de l'emploi du temps.
+
+De même, on représentera un élève par un dictionnaire :
+
+```python
+eleve = {
+    1 : 0,
+    2 : 3,
+    ...
+    p : 6
+}
+```
+Les élèves n'ayant pas besoin de numéro (ils sont complètement interchangeables, et totalement inutiles hors du débogage) on utilise directement un dictionnaire associant au numéro de chaque jury son heure avec l'élève en question. 
+
+Enfin, pour stocker les durees des oraux épreuves et pour préciser le temps minimal entre deux oraux, on utilise les variables `durees` et `pause`.
+
+```python
+durees = [
+    2, # l'épreuve du jury 0 dure 2 unités de temps
+    3, # l'épreuve du jury 1 dure 3 unités de temps
+    ...
+]
+
+# Un élève a au moins 1 unité de temps entre deux oraux :
+pause = 1
+```
 ## Annexe : algorithme de reconstruction
 Pour construire une solution à partir d'un chromosome, on utilise un algorithme glouton fonctionnant comme décrit ci-après. On divise le problème global en *p* problèmes locaux d'optimalité pour chaque jury. 
 On "remplit" l'emploi du temps de chaque jury (dans l'ordre donné par le premier gène). 
