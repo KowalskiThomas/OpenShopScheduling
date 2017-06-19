@@ -1,5 +1,6 @@
-from random import randint
+from random import randint, random
 from copy import deepcopy
+import numpy as np
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
@@ -11,7 +12,7 @@ durees = [
     5
 ]
 
-nbrEleves = 3
+nbrEleves = 4
 pause = 1
 
 eleves = [
@@ -33,10 +34,23 @@ jurys = [
     for j in range(len(durees))
     ]
 
-def construireEDT(solution):
+def construireEDT(solution, jurysVides, elevesVides):
+    '''
+    Construit l'EDT induit par `solution` selon un algorithme glouton.
+    
+    `jurysVides` et `elevesVides` doit contenir des dictionnaires correspondants aux jurys et élèves à qui il faut assigner les oraux, vides (c'est à dire dont les heures des oraux sont toutes `-1`)
+    
+    *Aucun paramètre n'est modifié, afin qu'aucune copie des variables originales `jurysVides` et `elevesVides` n'aient à être faites en dehors de la fonction.*
+    ''' 
+    jurys = deepcopy(jurysVides)
+    eleves = deepcopy(elevesVides)
+
     def estDisponibleEleve(eleve, heure, temps):
+        '''
+        Renvoie vrai si l'élève `eleve` est disponible à `heure` pendant au moins `temps + pause` unités de temps.
+        ''' 
         for epreuve, heureEpreuve in eleve.items():
-            if heure == -1:
+            if heureEpreuve == -1:
                 continue
             
             if heure <= heureEpreuve and heure + temps + pause > heureEpreuve:
@@ -47,9 +61,12 @@ def construireEDT(solution):
         return True
 
     def estDisponibleJury(jury, heure):
+        '''
+        Renvoie vrai si `jury` est disponible à `heure` pendant autant d'unités de temps que son épreuve dure.
+        '''
         numeroJury, orauxJury = jury["Numero"], jury["Oraux"]
 
-        for oral, heureOral in orauxJury.items():
+        for _, heureOral in orauxJury.items():
             if heureOral == -1:
                 continue
 
@@ -57,7 +74,7 @@ def construireEDT(solution):
                 return False
             elif heureOral <= heure and heureOral + durees[numeroJury] > heure:
                 return False
-        
+
         return True
 
     ordreJurys, *ordres = solution
@@ -84,7 +101,32 @@ def construireEDT(solution):
             else:
                 t += durees[j]        
 
+    return jurys, eleves
+
+def duree(jurys):
+    '''
+    Calcule la durée de l'emploi du temps représenté par la liste de jurys `jurys`.
+    '''
+    maxFin = 0
+    for jury in jurys:
+        numeroJury, oraux = jury["Numero"], jury["Oraux"]
+        for numeroEleve, heureOral in oraux.items():
+            if heureOral + durees[numeroJury] > maxFin:
+                maxFin = heureOral + durees[numeroJury]
+
+    return maxFin
+
 def perturbation(solution):
+    '''
+    Effectue une perturbation sur `solution`.
+    Pour cela, on choisit au hasard un des chromosomes (le modèle vient de l'algorithme génétique) et on inverse deux allèles à l'intérieur.
+
+    __Exemple :__
+    * `Avant : 123 1234 1234 1234`
+    * `Après : 123 1243 1234 1234`
+
+    Seul un chromosome est modifié, afin d'avoir une incidence limitée sur la solution.
+    '''
     solution = deepcopy(solution)
 
     indice = randint(0, len(solution) - 1)
@@ -97,10 +139,31 @@ def perturbation(solution):
 
     return solution
 
-def critere(solution, solutionPerturbee):
-    print("test")
+def critere(solution, solutionPerturbee, T, constante):
+    '''
+    Applique le critère de Metropolis avec la température `T` et la constante de Boltzmann `constante` et renvoie la solution qui doit être conservée (choix entre `solution` et `solutionPerturbee`).
+    '''
+    alea = random()
+
+    edtSolution = construireEDT(solution, jurys, eleves)[0]
+    edtSolutionPerturbee = construireEDT(solutionPerturbee, jurys, eleves)[0]
+
+    diffMakespan = duree(edtSolutionPerturbee) - duree(edtSolution)
+
+    if diffMakespan <= 0:
+        return solutionPerturbee
+    else:
+        if alea < np.exp(-1 * diffMakespan / (constante * T)):
+            return solutionPerturbee
+        else:
+            return solution
 
 def solutionInitiale():
+    '''
+    Renvoie une solution initiale correspondant à une solution naïve :
+
+    `12...p 12...n 12...n (p fois)`
+    '''
     sol = [[i for i in range(len(durees))]]
     
     for _ in range(len(durees)):
@@ -108,7 +171,11 @@ def solutionInitiale():
 
     return sol
 
-def afficher(patches, margin = 8):    
+def afficher(patches, margin = 8):
+    '''
+    Affiches les rectangles dans `patches` dans une fenêtre `MatPlotLib`.
+    Cette fonction ne devrait pas être appelée directement mais à travers `afficherEDT`.
+    '''
     plt.rcdefaults()
     fig, ax = plt.subplots()
     for p in patches:
@@ -119,26 +186,43 @@ def afficher(patches, margin = 8):
     plt.show()
 
 def afficherEDT(EDT):
+    '''
+    Affiche l'emploi du temps `EDT` qui est en fait une liste de dictionnaires-jurys.
+    '''
     patches = list()
     colors = ["black", "darksalmon", "DarkKhaki", "DarkViolet", "red", "blue", "green", "cyan", "magenta", "yellow", "black", "IndianRed", "Pink", "Lavender", "DarkOrange", "GreenYellow", "Teal", "SteelBlue", "MidnightBlue", "Maroon", "DimGray"]
     
     for i, prof in enumerate(EDT):
-        if i == 0:
-            continue
+        prof = prof["Oraux"]
         for eleve, heure in prof.items():
-            
             rekt = mpatches.Rectangle((heure, i), durees[i], 1, color = colors[eleve], ec = "black")
-        
             patches.append(rekt)
-        
+
     afficher(patches)
 
-solution = solutionInitiale()
-print(solution)
-solution2 = perturbation(solution)
-construireEDT(solution2)
+def recuitSimule(temperature = 1000,
+                 decroissance = lambda x : x - 10,
+                 constante = 100):
+    '''
+    Applique l'algorithme du recuit simulé avec la température initiale `temperature`, la loi de décroissance `decroissance` et la constante de Boltzmann `constante`.
+    '''
 
-print("Jurys")
-print(jurys)
-print("Eleves")
-print(eleves)
+    solution = solutionInitiale()
+    while temperature > 10:
+        solutionPrime = perturbation(solution)
+        solution = critere(solution, solutionPrime, temperature, constante)
+        temperature = decroissance(temperature)
+
+    edt = construireEDT(solution, jurys, eleves)[0]
+    return edt
+
+# Pour garantir les meilleurs résultats possibles, on recommence plusieurs fois l'optimisation par recuit simulé.
+recommencements = 100
+minDuree = float('inf')
+meilleureEDT = None
+for i in range(recommencements):
+    edt = recuitSimule()
+    if duree(edt) < minDuree:
+        meilleurEDT = edt
+
+afficherEDT(meilleurEDT)
