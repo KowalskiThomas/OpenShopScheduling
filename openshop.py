@@ -4,225 +4,252 @@ import numpy as np
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
-durees = [
-    1,
-    2,
-    3,
-    4,
-    5
-]
 
-nbrEleves = 4
-pause = 1
+def build_schedule(solution, new_examiners, new_students):
+    """
+    Builds the schedules induced by `solution` using a greedy algorithm.
+    `new_examiners` et `new_students` shall be dictionaries with empty records (which means they should all map to -1)
+    *No side-effects are present in this function*
+    """
+    examiners = deepcopy(new_examiners)
+    students = deepcopy(new_students)
 
-eleves = [
-    {
-        i : -1 
-        for i in range(len(durees))
-    } 
-    for j in range(nbrEleves)
-    ]
-
-jurys = [
-    {
-        "Numero" : j,
-        "Oraux" : {
-            i : -1 
-            for i in range(len(eleves))
-        }
-    } 
-    for j in range(len(durees))
-    ]
-
-def construireEDT(solution, jurysVides, elevesVides):
-    '''
-    Construit l'EDT induit par `solution` selon un algorithme glouton.
-    
-    `jurysVides` et `elevesVides` doit contenir des dictionnaires correspondants aux jurys et élèves à qui il faut assigner les oraux, vides (c'est à dire dont les heures des oraux sont toutes `-1`)
-    
-    *Aucun paramètre n'est modifié, afin qu'aucune copie des variables originales `jurysVides` et `elevesVides` n'aient à être faites en dehors de la fonction.*
-    ''' 
-    jurys = deepcopy(jurysVides)
-    eleves = deepcopy(elevesVides)
-
-    def estDisponibleEleve(eleve, heure, temps):
-        '''
-        Renvoie vrai si l'élève `eleve` est disponible à `heure` pendant au moins `temps + pause` unités de temps.
-        ''' 
-        for epreuve, heureEpreuve in eleve.items():
-            if heureEpreuve == -1:
+    def student_is_available(target_student, target_time, target_duration):
+        """
+        Checks whether a student is available at a given time for a certain duration
+        :param target_student: the student
+        :param target_time: the time at which the student should be available
+        :param target_duration: the duration during which the student should be available
+        :return:
+        """
+        for exam, exam_time in target_student.items():
+            if exam_time == -1:
                 continue
-            
-            if heure <= heureEpreuve and heure + temps + pause > heureEpreuve:
+
+            if target_time <= exam_time < target_time + target_duration + delay:
                 return False
-            elif heure >= heureEpreuve and heureEpreuve + durees[epreuve] + pause > heure:
+            elif exam_time <= target_time < exam_time + durations[exam] + delay:
                 return False
 
         return True
 
-    def estDisponibleJury(jury, heure):
-        '''
-        Renvoie vrai si `jury` est disponible à `heure` pendant autant d'unités de temps que son épreuve dure.
-        '''
-        numeroJury, orauxJury = jury["Numero"], jury["Oraux"]
+    def examiner_is_available(target_examiner, target_time):
+        """
+        Checks whether an examiner is available at a given time for his exam's duration
+        :param target_examiner: the examiner
+        :param target_time: the duration during which the examiner should be available
+        :return:
+        """
+        examiner_number, examiner_exams = target_examiner["Number"], target_examiner["Exams"]
 
-        for _, heureOral in orauxJury.items():
-            if heureOral == -1:
+        for _, exam_time in examiner_exams.items():
+            if exam_time == -1:
                 continue
 
-            if heure <= heureOral and heure + durees[numeroJury] > heureOral:
+            if target_time <= exam_time < target_time + durations[examiner_number]:
                 return False
-            elif heureOral <= heure and heureOral + durees[numeroJury] > heure:
+            elif exam_time <= target_time < exam_time + durations[examiner_number]:
                 return False
 
         return True
 
-    ordreJurys, *ordres = solution
+    examiners_order, *students_orders = solution
 
-    for j in ordreJurys:
-        tousAssocies = False
+    for j in examiners_order:
+        all_set = False
         t = 0
-        while not tousAssocies:
-            tousAssocies = [jurys[j]["Oraux"][i] != -1 for i in range(nbrEleves)] == [True for i in range(nbrEleves)]
-            place = False
-            for eleve in ordres[j]:
-                if jurys[j]["Oraux"][eleve] != -1:
+        while not all_set:
+            all_set = [examiners[j]["Exams"][i] != -1 for i in range(student_count)] == [True] * student_count
+            placed = False
+            for student in students_orders[j]:
+                if examiners[j]["Exams"][student] != -1:
                     continue
 
-                if estDisponibleEleve(eleves[eleve], t, durees[j]):
-                    if estDisponibleJury(jurys[j], t):
-                        place = True
-                        eleves[eleve][j] = t
-                        jurys[j]["Oraux"][eleve] = t
+                if student_is_available(students[student], t, durations[j]):
+                    if examiner_is_available(examiners[j], t):
+                        placed = True
+                        students[student][j] = t
+                        examiners[j]["Exams"][student] = t
                         break
 
-            if not place:
+            if not placed:
                 t += 1
             else:
-                t += durees[j]        
+                t += durations[j]
 
-    return jurys, eleves
+    return examiners, students
 
-def duree(jurys):
-    '''
-    Calcule la durée de l'emploi du temps représenté par la liste de jurys `jurys`.
-    '''
-    maxFin = 0
-    for jury in jurys:
-        numeroJury, oraux = jury["Numero"], jury["Oraux"]
-        for numeroEleve, heureOral in oraux.items():
-            if heureOral + durees[numeroJury] > maxFin:
-                maxFin = heureOral + durees[numeroJury]
 
-    return maxFin
+def duration(examiners_data):
+    """
+    Computes the duration of a solution
+    :param examiners_data: the examiners data for the solution
+    :return: the makespan for this solution
+    """
+    max_end = 0
+    for jury in examiners_data:
+        examiner_number, exams = jury["Number"], jury["Exams"]
+        for student_number, exam_time in exams.items():
+            if exam_time + durations[examiner_number] > max_end:
+                max_end = exam_time + durations[examiner_number]
+
+    return max_end
+
 
 def perturbation(solution):
-    '''
-    Effectue une perturbation sur `solution`.
-    Pour cela, on choisit au hasard un des chromosomes (le modèle vient de l'algorithme génétique) et on inverse deux allèles à l'intérieur.
-
-    __Exemple :__
-    * `Avant : 123 1234 1234 1234`
-    * `Après : 123 1243 1234 1234`
-
-    Seul un chromosome est modifié, afin d'avoir une incidence limitée sur la solution.
-    '''
+    """
+    Applies a perturbation on the given solution.
+    To do this, a random chromosome is chosen and two of its alleles are swapped.
+    Example: 123 1234 1234 1234 gives 123 1243 1234 1234
+    :param solution: the solution to perturb
+    :return: the perturbed solution
+    Only one gene is changed, to keep the perturbation limited.
+    """
     solution = deepcopy(solution)
 
-    indice = randint(0, len(solution) - 1)
+    chosen_index = randint(0, len(solution) - 1)
 
-    sousListe = solution[indice]
-    sousIndice = randint(0, len(sousListe) - 2)
-    sousListe[sousIndice], sousListe[sousIndice + 1] = sousListe[sousIndice + 1], sousListe[sousIndice]
+    sub_sequence = solution[chosen_index]
+    sub_index = randint(0, len(sub_sequence) - 2)
+    sub_sequence[sub_index], sub_sequence[sub_index + 1] = sub_sequence[sub_index + 1], sub_sequence[sub_index]
 
-    solution[indice] = sousListe
+    solution[chosen_index] = sub_sequence
 
     return solution
 
-def critere(solution, solutionPerturbee, T, constante):
-    '''
-    Applique le critère de Metropolis avec la température `T` et la constante de Boltzmann `constante` et renvoie la solution qui doit être conservée (choix entre `solution` et `solutionPerturbee`).
-    '''
-    alea = random()
 
-    edtSolution = construireEDT(solution, jurys, eleves)[0]
-    edtSolutionPerturbee = construireEDT(solutionPerturbee, jurys, eleves)[0]
+def metropolis_criterion(solution, solution_with_perturbation, temperature, constant):
+    """
+    Applies the Metropolis criterion using the given parameters
+    :param solution: the current solution
+    :param solution_with_perturbation: the perturbed solution
+    :param temperature: the current temperature
+    :param constant: the "Boltzmann constant"
+    :return: the solution to keep
+    """
+    rand = random()
 
-    diffMakespan = duree(edtSolutionPerturbee) - duree(edtSolution)
+    schedule = build_schedule(solution, examiners, students)[0]
+    schedule_with_perturbation = build_schedule(solution_with_perturbation, examiners, students)[0]
 
-    if diffMakespan <= 0:
-        return solutionPerturbee
+    delta_makespan = duration(schedule_with_perturbation) - duration(schedule)
+
+    if delta_makespan <= 0:
+        return solution_with_perturbation
     else:
-        if alea < np.exp(-1 * diffMakespan / (constante * T)):
-            return solutionPerturbee
+        if rand < np.exp(-1 * delta_makespan / (constant * temperature)):
+            return solution_with_perturbation
         else:
             return solution
 
-def solutionInitiale():
-    '''
-    Renvoie une solution initiale correspondant à une solution naïve :
 
-    `12...p 12...n 12...n (p fois)`
-    '''
-    sol = [[i for i in range(len(durees))]]
-    
-    for _ in range(len(durees)):
-        sol += [[j for j in range(len(eleves))]]
+def initial_solution():
+    """
+    Creates a naive solution in the form 1..p 1..n 1..n ... 1..n
+    :return: a naive solution
+    """
+    solution = [[i for i in range(len(durations))]]
 
-    return sol
+    for _ in range(len(durations)):
+        solution += [[j for j in range(len(students))]]
 
-def afficher(patches, margin = 8):
-    '''
-    Affiches les rectangles dans `patches` dans une fenêtre `MatPlotLib`.
-    Cette fonction ne devrait pas être appelée directement mais à travers `afficherEDT`.
-    '''
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    for p in patches:
-        ax.add_patch(p)
-    maxMachines = max(rect.get_y() for rect in patches) + 1
-    maxJobs = max(rect.get_x() + margin for rect in patches)
-    plt.axis([0, maxJobs, 0, maxMachines])
-    plt.show()
+    return solution
 
-def afficherEDT(EDT):
-    '''
-    Affiche l'emploi du temps `EDT` qui est en fait une liste de dictionnaires-jurys.
-    '''
+
+def display_schedule(schedule):
+    """
+    Displays the given schedule in a MatPlotLib window
+    :param schedule: the schedule to display
+    """
+
+    def display_patches(patches_sequence, margin=8):
+        """
+        Displays a sequence of MatPlotLib patches in a MatPlotLib window
+        :param patches_sequence: the patches to display
+        :param margin:
+        :return:
+        """
+        plt.rcdefaults()
+        fig, ax = plt.subplots()
+        for p in patches_sequence:
+            ax.add_patch(p)
+        max_machines = max(rect.get_y() for rect in patches_sequence) + 1
+        max_jobs = max(rect.get_x() + margin for rect in patches_sequence)
+        plt.axis([0, max_jobs, 0, max_machines])
+        plt.show()
+
     patches = list()
-    colors = ["black", "darksalmon", "DarkKhaki", "DarkViolet", "red", "blue", "green", "cyan", "magenta", "yellow", "black", "IndianRed", "Pink", "Lavender", "DarkOrange", "GreenYellow", "Teal", "SteelBlue", "MidnightBlue", "Maroon", "DimGray"]
-    
-    for i, prof in enumerate(EDT):
-        prof = prof["Oraux"]
+    colors = ["black", "darksalmon", "DarkKhaki", "DarkViolet", "red", "blue", "green", "cyan", "magenta", "yellow",
+              "black", "IndianRed", "Pink", "Lavender", "DarkOrange", "GreenYellow", "Teal", "SteelBlue",
+              "MidnightBlue", "Maroon", "DimGray"]
+
+    for i, prof in enumerate(schedule):
+        prof = prof["Exams"]
         for eleve, heure in prof.items():
-            rekt = mpatches.Rectangle((heure, i), durees[i], 1, color = colors[eleve], ec = "black")
+            rekt = mpatches.Rectangle((heure, i), durations[i], 1, color=colors[eleve], ec="black")
             patches.append(rekt)
 
-    afficher(patches)
+    display_patches(patches)
 
-def recuitSimule(temperature = 1000,
-                 decroissance = lambda x : x - 10,
-                 constante = 100):
-    '''
-    Applique l'algorithme du recuit simulé avec la température initiale `temperature`, la loi de décroissance `decroissance` et la constante de Boltzmann `constante`.
-    '''
 
-    solution = solutionInitiale()
+def simulated_annealing(temperature=1000,
+                        decrease_function=lambda x: x - 10,
+                        constant=100):
+    """
+    Applies the simulated annealing algorithm to the problem
+    :param temperature: the initial temperature
+    :param decrease_function: the function used to decrease the temperature at each iteration
+    :param constant: the "Boltzmann constant"
+    """
+
+    solution = initial_solution()
     while temperature > 10:
-        solutionPrime = perturbation(solution)
-        solution = critere(solution, solutionPrime, temperature, constante)
-        temperature = decroissance(temperature)
+        new_solution = perturbation(solution)
+        solution = metropolis_criterion(solution, new_solution, temperature, constant)
+        temperature = decrease_function(temperature)
 
-    edt = construireEDT(solution, jurys, eleves)[0]
+    edt = build_schedule(solution, examiners, students)[0]
     return edt
 
-# Pour garantir les meilleurs résultats possibles, on recommence plusieurs fois l'optimisation par recuit simulé.
-recommencements = 100
-minDuree = float('inf')
-meilleureEDT = None
-for i in range(recommencements):
-    edt = recuitSimule()
-    if duree(edt) < minDuree:
-        meilleurEDT = edt
 
-afficherEDT(meilleurEDT)
+if __name__ == '__main__':
+    durations = [
+        1,
+        2,
+        3,
+        4,
+        5
+    ]
+
+    student_count = 4
+    delay = 1
+
+    students = [
+        {
+            i: -1
+            for i in range(len(durations))
+        }
+        for j in range(student_count)
+    ]
+
+    examiners = [
+        {
+            "Number": j,
+            "Exams": {
+                i: -1
+                for i in range(len(students))
+            }
+        }
+        for j in range(len(durations))
+    ]
+
+    # The algorithm is applied several times to get better results
+    iterations = 100
+    best_duration = float('inf')
+    best_schedule = None
+    for _ in range(iterations):
+        edt = simulated_annealing()
+        if duration(edt) < best_duration:
+            best_schedule = edt
+
+    display_schedule(best_schedule)
