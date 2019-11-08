@@ -1,6 +1,8 @@
 A new optimisation technique for Open-Shop Scheduling
 ====
 
+**Forenote: a C++ implementation is available [here](https://github.com/KowalskiThomas/OpenShop-CPP).**
+
 ## Presentation
 
 After a request from the French [Ecole Navale](https://www.ecole-navale.fr), I did a literature survey of known techniques and heuristics used in open-shop scheduling problems. Their goal was to generate and optimise automatically oral exam schedules according to arbitrary rules (namely, letting student rest a bit between each exam).
